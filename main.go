@@ -612,7 +612,7 @@ func (a *App) userServices(c *gin.Context) {
 		log.Printf("syncFromPanel before userServices failed: %v", err)
 	}
 	rows := make([]ServiceRecord, 0)
-	a.db.Where("user_id = ?", uid).Order("id desc").Find(&rows)
+	a.db.Where("user_id = ? and status = ?", uid, "DONE").Order("id desc").Find(&rows)
 	a.fillSubscriptionURL(rows)
 	a.fillNodeRemark(rows)
 	c.JSON(http.StatusOK, gin.H{"success": true, "obj": rows})
