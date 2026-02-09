@@ -1,0 +1,62 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>管理员登录</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#edeff6;--ink:#1b2330;--muted:#4b5568;--card:#ffffff;--line:#dde2ec;--accent:#2954d8;--accent-2:#e65454}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:"DM Sans",sans-serif;background:radial-gradient(circle at 12% 5%,#c8d2f5 0,#edeff6 40%),linear-gradient(120deg,#f4f6fb,#edeff6);min-height:100vh;display:grid;place-items:center;color:var(--ink);padding:24px}
+    .wrap{width:min(960px,100%);display:grid;grid-template-columns:1fr 1fr;background:var(--card);border:1px solid var(--line);border-radius:24px;overflow:hidden;box-shadow:0 16px 50px rgba(44,62,102,.15)}
+    .left{background:linear-gradient(135deg,#1f3470,#2e4ca1 45%,#243c82);padding:34px;color:#e8eeff;position:relative}
+    .left:after{content:"";position:absolute;inset:auto -55px -70px auto;width:220px;height:220px;background:#6d8bff;opacity:.35;border-radius:42% 58% 65% 35%}
+    .brand{font-family:"Manrope",sans-serif;font-size:28px;font-weight:800;margin:0 0 10px}
+    .desc{margin:0;line-height:1.8;max-width:320px}
+    .right{padding:34px}
+    h2{font-family:"Manrope",sans-serif;font-size:30px;margin:0 0 4px}
+    .sub{margin:0 0 22px;color:var(--muted)}
+    label{display:block;font-size:13px;font-weight:700;margin:12px 0 6px}
+    input{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:12px}
+    input:focus{outline:none;border-color:#6e8bff;box-shadow:0 0 0 4px rgba(110,139,255,.2)}
+    button{margin-top:16px;width:100%;border:none;border-radius:12px;padding:12px 14px;background:var(--accent);color:#fff;font-weight:700;cursor:pointer}
+    button.loading{opacity:.7;pointer-events:none}
+    .hint{margin-top:12px;color:var(--muted);min-height:18px;font-size:13px}
+    @media (max-width:860px){.wrap{grid-template-columns:1fr}.left{display:none}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="left">
+      <p class="brand">FW Admin</p>
+      <p class="desc">使用与 3x-ui 相同的管理员账号登录。进入后可同步、查看并管理所有订阅。</p>
+    </section>
+    <section class="right">
+      <h2>管理员登录</h2>
+      <p class="sub">账号密码与 3x-ui 面板一致</p>
+      <label for="username">用户名</label>
+      <input id="username" placeholder="管理员用户名" value="admin"/>
+      <label for="password">密码</label>
+      <input id="password" type="password" placeholder="管理员密码"/>
+      <button id="loginBtn" onclick="login()">登录后台</button>
+      <div id="hint" class="hint"></div>
+    </section>
+  </div>
+<script>
+async function login(){
+  loginBtn.classList.add('loading'); hint.textContent='登录中...';
+  try{
+    const r=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:username.value,password:password.value})});
+    const d=await r.json();
+    if(!d.success){hint.textContent=d.msg||'登录失败';return;}
+    location.href='/admin/dashboard';
+  }finally{
+    loginBtn.classList.remove('loading');
+  }
+}
+</script>
+</body>
+</html>

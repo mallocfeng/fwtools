@@ -1,0 +1,71 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>用户登录</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#f4efe3;--ink:#183a31;--muted:#4a5f59;--card:#fffaf2;--line:#d8d1c4;--accent:#0d7d65;--accent-2:#db3f32}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:"Plus Jakarta Sans",sans-serif;background:radial-gradient(circle at 10% 0,#d5e5df 0,#f4efe3 45%),linear-gradient(120deg,#f4efe3,#f8f6f0);min-height:100vh;color:var(--ink);display:grid;place-items:center;padding:24px}
+    .layout{width:min(980px,100%);display:grid;grid-template-columns:1.1fr 1fr;background:var(--card);border:1px solid var(--line);border-radius:26px;overflow:hidden;box-shadow:0 20px 55px rgba(29,42,38,.12)}
+    .art{background:linear-gradient(140deg,#154c3f,#266f5d 45%,#1a463d);padding:34px;position:relative;color:#e6f3ef}
+    .art:before,.art:after{content:"";position:absolute;border-radius:999px;filter:blur(8px);opacity:.55}
+    .art:before{width:200px;height:200px;background:#5ec6ac;right:-60px;top:30px}
+    .art:after{width:150px;height:150px;background:#db3f32;left:-45px;bottom:20px}
+    .brand{font-family:"Manrope",sans-serif;font-size:28px;font-weight:800;letter-spacing:.5px;margin:0 0 10px}
+    .desc{margin:0;line-height:1.8;max-width:320px}
+    .panel{padding:34px}
+    h2{margin:0 0 4px;font-family:"Manrope",sans-serif;font-size:30px}
+    .sub{margin:0 0 22px;color:var(--muted)}
+    label{display:block;font-size:13px;font-weight:700;margin:12px 0 6px}
+    input{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:#fff}
+    input:focus{outline:none;border-color:#66af9c;box-shadow:0 0 0 4px rgba(102,175,156,.18)}
+    .row{display:flex;gap:10px;margin-top:16px}
+    button{flex:1;border:none;border-radius:12px;padding:12px 14px;font-weight:700;cursor:pointer;transition:.2s transform,.2s opacity}
+    button:active{transform:translateY(1px)}
+    .primary{background:var(--accent);color:#fff}
+    .ghost{background:#eef3ef;color:#295145}
+    .loading{opacity:.7;pointer-events:none}
+    .hint{margin-top:12px;font-size:13px;color:var(--muted);min-height:18px}
+    @media (max-width:860px){.layout{grid-template-columns:1fr}.art{display:none}}
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <section class="art">
+      <p class="brand">FW Access</p>
+      <p class="desc">统一用户入口。登录后可查看套餐、下单支付并管理订阅链接。</p>
+    </section>
+    <section class="panel">
+      <h2>用户登录</h2>
+      <p class="sub">使用注册邮箱登录</p>
+      <label for="email">邮箱</label>
+      <input id="email" placeholder="you@example.com" />
+      <label for="password">密码</label>
+      <input id="password" type="password" placeholder="请输入密码" />
+      <div class="row">
+        <button id="loginBtn" class="primary" onclick="login()">登录</button>
+        <button class="ghost" onclick="location.href='/user/register'">去注册</button>
+      </div>
+      <div id="hint" class="hint"></div>
+    </section>
+  </div>
+<script>
+async function login(){
+  loginBtn.classList.add('loading'); hint.textContent='登录中...';
+  try{
+    const r=await fetch('/api/user/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email.value,password:password.value})});
+    const d=await r.json();
+    if(!d.success){hint.textContent=d.msg||'登录失败';return;}
+    location.href='/user/dashboard';
+  }finally{
+    loginBtn.classList.remove('loading');
+  }
+}
+</script>
+</body>
+</html>

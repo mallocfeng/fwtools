@@ -1,0 +1,79 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>用户注册</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#f7efe9;--ink:#1c312f;--muted:#546665;--card:#fff9f4;--line:#dfd2cb;--accent:#0e7a66;--accent-2:#ce5030}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:"Plus Jakarta Sans",sans-serif;background:radial-gradient(circle at 100% 0,#f3d7cb 0,#f7efe9 42%),linear-gradient(120deg,#f6efe8,#eef2eb);min-height:100vh;color:var(--ink);display:grid;place-items:center;padding:24px}
+    .layout{width:min(980px,100%);display:grid;grid-template-columns:1fr 1.08fr;background:var(--card);border:1px solid var(--line);border-radius:26px;overflow:hidden;box-shadow:0 20px 55px rgba(37,35,31,.12)}
+    .art{padding:34px;background:linear-gradient(135deg,#352f2b,#4a443f 48%,#2c2623);color:#efe8e2;position:relative}
+    .art:before,.art:after{content:"";position:absolute;border-radius:999px;opacity:.6;filter:blur(8px)}
+    .art:before{width:180px;height:180px;background:#ce5030;right:-65px;top:35px}
+    .art:after{width:180px;height:180px;background:#3aa98d;left:-70px;bottom:10px}
+    .brand{font-family:"Manrope",sans-serif;font-size:28px;font-weight:800;margin:0 0 10px}
+    .desc{margin:0;line-height:1.8;max-width:320px}
+    .panel{padding:34px}
+    h2{margin:0 0 4px;font-family:"Manrope",sans-serif;font-size:30px}
+    .sub{margin:0 0 22px;color:var(--muted)}
+    label{display:block;font-size:13px;font-weight:700;margin:12px 0 6px}
+    input{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:#fff}
+    input:focus{outline:none;border-color:#69aa9a;box-shadow:0 0 0 4px rgba(105,170,154,.18)}
+    .row{display:flex;gap:10px;margin-top:16px}
+    button{flex:1;border:none;border-radius:12px;padding:12px 14px;font-weight:700;cursor:pointer;transition:.2s transform,.2s opacity}
+    button:active{transform:translateY(1px)}
+    .primary{background:var(--accent);color:#fff}
+    .ghost{background:#eef3ef;color:#30564e}
+    .loading{opacity:.7;pointer-events:none}
+    .hint{margin-top:12px;font-size:13px;color:var(--muted);min-height:18px}
+    .rules{margin-top:8px;padding:10px 12px;background:#f6f0eb;border:1px solid #e8d8cf;border-radius:10px;color:#6c4a42;font-size:12px;line-height:1.7}
+    @media (max-width:860px){.layout{grid-template-columns:1fr}.art{display:none}}
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <section class="art">
+      <p class="brand">FW Access</p>
+      <p class="desc">注册一个账号后，你可以购买套餐、查看订单、管理自己的订阅链接。</p>
+    </section>
+    <section class="panel">
+      <h2>创建账号</h2>
+      <p class="sub">邮箱将作为你的登录身份</p>
+      <label for="email">邮箱</label>
+      <input id="email" placeholder="you@example.com" />
+      <label for="password">密码</label>
+      <input id="password" type="password" placeholder="至少 8 位，含大小写/数字/特殊字符" />
+      <div class="rules">
+        密码要求：
+        <br>1. 至少 8 位
+        <br>2. 必须包含大写字母和小写字母
+        <br>3. 必须包含数字
+        <br>4. 必须包含特殊字符（如 !@#$%^&*）
+      </div>
+      <div class="row">
+        <button id="regBtn" class="primary" onclick="reg()">注册</button>
+        <button class="ghost" onclick="location.href='/user/login'">去登录</button>
+      </div>
+      <div id="hint" class="hint"></div>
+    </section>
+  </div>
+<script>
+async function reg(){
+  regBtn.classList.add('loading'); hint.textContent='注册中...';
+  try{
+    const r=await fetch('/api/user/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email.value,password:password.value})});
+    const d=await r.json();
+    if(!d.success){hint.textContent=d.msg||'注册失败';return;}
+    location.href='/user/dashboard';
+  }finally{
+    regBtn.classList.remove('loading');
+  }
+}
+</script>
+</body>
+</html>

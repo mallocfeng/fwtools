@@ -1,0 +1,314 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>用户后台</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#f2efe7;--paper:#fffdf8;--ink:#1a3b34;--muted:#55706b;--line:#d9d2c8;--btn:#0f7b64;--btn2:#274f95;--warn:#b85922}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:"IBM Plex Sans",sans-serif;background:radial-gradient(circle at 100% 0,#c9ded7 0,#f2efe7 45%),linear-gradient(120deg,#f2efe7,#f8f5ee);color:var(--ink);padding:20px}
+    .wrap{max-width:1220px;margin:0 auto}
+    .top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+    .title{font-family:"Manrope",sans-serif;font-size:40px;font-weight:800;letter-spacing:.4px;margin:0}
+    .sub{margin:4px 0 0;color:var(--muted)}
+    .actions{display:flex;gap:8px;align-items:center}
+    button{border:none;border-radius:11px;padding:10px 14px;font-weight:700;cursor:pointer}
+    .btn-main{background:var(--btn);color:#fff}
+    .btn-sub{background:var(--btn2);color:#fff}
+    .btn-pay{background:var(--warn);color:#fff;padding:7px 10px;white-space:nowrap}
+    .btn-del{background:#a64040;color:#fff;padding:7px 10px;white-space:nowrap}
+    .btn-main.loading,.btn-sub.loading,.btn-pay.loading,.btn-del.loading{opacity:.65;pointer-events:none}
+    .btn-main.disabled{background:#a8b0ae !important;color:#e9eceb !important;cursor:not-allowed !important}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .panel{background:var(--paper);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 8px 25px rgba(26,36,33,.07)}
+    .panel h3{margin:0;padding:16px 18px;font-family:"Manrope",sans-serif;font-size:27px;border-bottom:1px solid var(--line)}
+    .inner{padding:14px}
+    .cards{display:flex;flex-direction:column;gap:10px}
+    .card{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fff;display:flex;justify-content:space-between;align-items:center;gap:12px}
+    .card b{font-size:18px;font-family:"Manrope",sans-serif;white-space:nowrap}
+    .meta{margin:0;color:var(--muted);line-height:1.2;font-size:14px;white-space:nowrap}
+    .plan-left{display:flex;flex-direction:row;align-items:center;gap:12px;min-width:0}
+    .plan-tags{display:flex;gap:6px;flex-wrap:nowrap}
+    .plan-tag{font-size:12px;font-weight:700;background:#eef5f2;border:1px solid #d3e6de;border-radius:999px;padding:4px 10px;color:#2c5c4f}
+    .node-select{padding:8px 36px 8px 12px;border:1px solid #bfd1cb;border-radius:10px;background:#f5fbf8;color:#21453d;min-width:220px;font-weight:600;outline:none;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%2321453d' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+    .node-select:focus{border-color:#6aa89a;box-shadow:0 0 0 3px rgba(106,168,154,.18)}
+    .node-bar{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+    .node-label{font-size:13px;font-weight:700;color:#375650}
+    .table{width:100%;border-collapse:collapse}
+    .table th,.table td{padding:10px;border-bottom:1px dashed #e5dfd5;text-align:left}
+    .table th{font-family:"Manrope",sans-serif}
+    .ops{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+    .status-tag{display:inline-block;padding:3px 10px;border-radius:999px;background:#eef4f2;border:1px solid #d3e6de;font-size:12px;font-weight:700;white-space:nowrap !important;word-break:keep-all !important;overflow-wrap:normal !important;line-break:strict !important;writing-mode:horizontal-tb !important;min-width:76px;text-align:center}
+    #orders td:nth-child(3),#orders th:nth-child(3){white-space:nowrap !important;width:110px;min-width:110px}
+    .url{display:inline-block;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#1f5ca8}
+    .hint{min-height:18px;color:var(--muted);font-size:13px;padding:4px 2px 0}
+    .ban-alert{display:none;grid-column:1/-1;margin:0 0 2px;padding:12px 14px;border:1px solid #e6b5b1;background:#fff1ef;color:#992f2f;border-radius:12px;font-weight:700;line-height:1.5}
+    .who{font-size:13px;font-weight:700;color:#375650;background:#e8f0ed;border:1px solid #cdded8;padding:7px 10px;border-radius:999px}
+    .btn-logout{background:#c4473f;color:#fff}
+    .btn-qr{background:#2c6fb7;color:#fff;padding:6px 10px;white-space:nowrap}
+    .sub-cell{display:flex;align-items:center;gap:10px}
+    .modal{position:fixed;inset:0;background:rgba(0,0,0,.38);display:none;align-items:center;justify-content:center;padding:16px;z-index:9999}
+    .modal-card{width:min(420px,100%);background:#fff;border-radius:16px;border:1px solid #d9d2c8;box-shadow:0 16px 40px rgba(0,0,0,.22);padding:14px}
+    .modal-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+    .modal-title{font-family:"Manrope",sans-serif;font-size:20px;font-weight:700;margin:0}
+    .modal-close{background:#f1f1f1;color:#333;border-radius:8px;padding:6px 10px}
+    .qr-wrap{display:flex;justify-content:center;padding:8px 0}
+    #qrCanvas{max-width:100%;height:auto}
+    .qr-url{font-size:12px;color:#5b6663;word-break:break-all;line-height:1.5}
+    @media (max-width:980px){.grid{grid-template-columns:1fr}.title{font-size:34px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div>
+        <h2 class="title">用户后台</h2>
+        <p class="sub">查看套餐、创建订单、支付开通并获取订阅地址</p>
+      </div>
+      <div class="actions">
+        <span id="who" class="who">当前用户：加载中...</span>
+        <button id="plansBtn" class="btn-main" onclick="loadPlans()">刷新套餐</button>
+        <button id="servicesBtn" class="btn-sub" onclick="loadServices()">刷新服务</button>
+        <button id="logoutBtn" class="btn-logout" onclick="logout()">退出登录</button>
+      </div>
+    </header>
+
+    <main class="grid">
+      <div id="banAlert" class="ban-alert">账号因违反使用规范已被禁用。当前无法购买新节点，如有疑问请联系管理员。</div>
+      <section class="panel">
+        <h3>套餐列表</h3>
+        <div class="inner">
+          <div class="node-bar">
+            <span class="node-label">选择节点：</span>
+            <select class="node-select" id="globalNodeSelect"></select>
+          </div>
+          <div id="plans" class="cards"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h3>订单（待支付）</h3>
+        <div class="inner">
+          <table class="table">
+            <thead><tr><th>订单号</th><th>金额(元)</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody id="orders"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <section class="panel" style="margin-top:16px">
+      <h3>我的服务</h3>
+      <div class="inner">
+        <table class="table">
+          <thead><tr><th>ID</th><th>Client Email</th><th>节点</th><th>Sub ID</th><th>订阅地址</th><th>状态</th></tr></thead>
+          <tbody id="services"></tbody>
+        </table>
+        <div id="hint" class="hint"></div>
+      </div>
+    </section>
+  </div>
+  <div id="qrModal" class="modal" onclick="if(event.target===this) closeQr()">
+    <div class="modal-card">
+      <div class="modal-top">
+        <p class="modal-title">订阅二维码</p>
+        <button class="modal-close" onclick="closeQr()">关闭</button>
+      </div>
+      <div class="qr-wrap">
+        <canvas id="qrCanvas" width="280" height="280"></canvas>
+        <img id="qrImg" alt="qr" style="display:none;max-width:280px;width:100%;height:auto"/>
+      </div>
+      <div id="qrUrl" class="qr-url"></div>
+    </div>
+  </div>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+<script>
+const orders=[];
+const ordersEl=document.getElementById('orders');
+const plans=document.getElementById('plans');
+const services=document.getElementById('services');
+const hint=document.getElementById('hint');
+const plansBtn=document.getElementById('plansBtn');
+const servicesBtn=document.getElementById('servicesBtn');
+const who=document.getElementById('who');
+const logoutBtn=document.getElementById('logoutBtn');
+const qrModal=document.getElementById('qrModal');
+const qrCanvas=document.getElementById('qrCanvas');
+const qrImg=document.getElementById('qrImg');
+const qrUrl=document.getElementById('qrUrl');
+const banAlert=document.getElementById('banAlert');
+const globalNodeSelect=document.getElementById('globalNodeSelect');
+let userBlocked=false;
+let inboundOptions=[];
+
+function renderOrders(){
+  ordersEl.innerHTML=orders.map(o=>`<tr><td>${o.orderNo}</td><td>${fmtYuan(o.amountCents)}</td><td><span class='status-tag'>${zhStatus(o.status)}</span></td><td><div class='ops'><button class="btn-pay" onclick="pay(${o.id},this)">模拟支付并开通</button><button class="btn-del" onclick="removeOrder(${o.id},this)">删除订单</button></div></td></tr>`).join('');
+}
+
+function fmtYuan(cents){return (Number(cents||0)/100).toFixed(0)}
+function zhStatus(s){
+  switch((s||'').toUpperCase()){
+    case 'PENDING': return '待\u2060支\u2060付';
+    case 'PAID': return '已支付';
+    case 'DONE': return '已开通';
+    case 'DISABLED': return '已停用';
+    case 'DELETED': return '已删除';
+    default: return s || '-';
+  }
+}
+
+async function loadPlans(){
+  plansBtn.classList.add('loading');
+  try{
+    if(inboundOptions.length===0){
+      await loadInbounds();
+    }
+    const r=await fetch('/api/user/plans');
+    const d=await r.json();
+    if(!d.success){hint.textContent=d.msg||'加载套餐失败';return;}
+    plans.innerHTML=d.obj.map(p=>`<div class='card'><div class='plan-left'><b>${p.name}</b><div class='meta'>${fmtYuan(p.priceCents)} 元</div><div class='plan-tags'><span class='plan-tag'>${p.trafficGB}GB/${p.durationDays}天</span></div></div><button class='btn-main ${userBlocked?'disabled':''}' ${userBlocked?'disabled':''} onclick='createOrder(${p.id})'>下单</button></div>`).join('');
+  }finally{
+    plansBtn.classList.remove('loading');
+  }
+}
+
+async function loadInbounds(){
+  const r=await fetch('/api/user/inbounds');
+  const d=await r.json();
+  if(!d.success){hint.textContent=d.msg||'加载节点失败';inboundOptions=[];return;}
+  inboundOptions=d.obj||[];
+  globalNodeSelect.innerHTML=inboundOptions.map(n=>`<option value="${n.id}">${n.remark}</option>`).join('');
+}
+
+async function createOrder(planId){
+  if(userBlocked){hint.textContent='账号已被拉黑，无法购买新节点。';return;}
+  const inboundId=Number(globalNodeSelect?.value||0);
+  if(!inboundId){hint.textContent='请先选择节点';return;}
+  const r=await fetch('/api/user/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({planId,inboundId})});
+  const d=await r.json();
+  if(!d.success){hint.textContent=d.msg||'下单失败';return;}
+  await loadOrders();
+  hint.textContent='订单已创建，可点击“模拟支付并开通”。';
+}
+
+async function pay(id,btn){
+  btn.classList.add('loading');
+  try{
+    const r=await fetch('/api/user/orders/'+id+'/pay',{method:'POST'});
+    const d=await r.json();
+    if(!d.success){hint.textContent=d.msg||'开通失败';return;}
+    hint.textContent='开通成功：'+(d.obj?.subscriptionUrl||'');
+    const i=orders.findIndex(x=>x.id===id);
+    if(i>=0)orders.splice(i,1);
+    renderOrders();
+    await loadServices();
+  }finally{
+    btn.classList.remove('loading');
+  }
+}
+
+async function removeOrder(id,btn){
+  if(!confirm('确认删除这个待支付订单吗？')) return;
+  btn.classList.add('loading');
+  try{
+    const r=await fetch('/api/user/orders/'+id,{method:'DELETE'});
+    const d=await r.json();
+    if(!d.success){hint.textContent=d.msg||'删除失败';return;}
+    await loadOrders();
+    hint.textContent='订单已删除。';
+  }finally{
+    btn.classList.remove('loading');
+  }
+}
+
+async function loadOrders(){
+  const r=await fetch('/api/user/orders');
+  const d=await r.json();
+  if(!d.success){hint.textContent=d.msg||'加载订单失败';return;}
+  orders.splice(0,orders.length,...(d.obj||[]));
+  renderOrders();
+}
+
+async function loadServices(){
+  servicesBtn.classList.add('loading'); hint.textContent='正在同步服务...';
+  try{
+    const r=await fetch('/api/user/services');
+    const d=await r.json();
+    if(!d.success){hint.textContent=d.msg||'加载服务失败';return;}
+    services.innerHTML=d.obj.map(s=>`<tr><td>${s.id}</td><td>${s.clientEmail}</td><td>${s.nodeRemark||('-#'+s.inboundID)}</td><td>${s.clientSubID}</td><td><div class='sub-cell'><a class='url' href='${s.subscriptionURL}' target='_blank'>${s.subscriptionURL}</a><button class='btn-qr qr-action' data-url='${s.subscriptionURL}'>二维码</button></div></td><td>${zhStatus(s.status)}</td></tr>`).join('');
+    services.querySelectorAll('.qr-action').forEach(btn=>{
+      btn.addEventListener('click',()=>showQr(btn.dataset.url||''));
+    });
+    hint.textContent='服务列表已更新。';
+  }finally{
+    servicesBtn.classList.remove('loading');
+  }
+}
+
+async function showQr(url){
+  const u = String(url||'');
+  if(!u){hint.textContent='订阅地址为空';return;}
+  qrUrl.textContent=u;
+  qrModal.style.display='flex';
+  qrImg.style.display='none';
+  qrCanvas.style.display='block';
+  try{
+    if(window.QRCode && typeof QRCode.toCanvas === 'function'){
+      await QRCode.toCanvas(qrCanvas,u,{width:280,margin:1});
+      return;
+    }
+  }catch(e){}
+  // Fallback when QR library fails to load.
+  qrCanvas.style.display='none';
+  qrImg.style.display='block';
+  qrImg.src='https://api.qrserver.com/v1/create-qr-code/?size=280x280&data='+encodeURIComponent(u);
+  qrImg.onerror=()=>{hint.textContent='二维码生成失败，请检查网络或直接复制订阅地址。';};
+  qrImg.onload=()=>{hint.textContent='';};
+  if(!window.QRCode){
+    hint.textContent='二维码库加载失败，已切换备用生成方式。';
+  }
+}
+
+function closeQr(){
+  qrModal.style.display='none';
+}
+
+async function loadMe(){
+  const r=await fetch('/api/user/me');
+  const d=await r.json();
+  if(!d.success){who.textContent='当前用户：未登录';return;}
+  who.textContent='当前用户：'+(d.obj?.email||'-');
+  userBlocked=!!d.obj?.blocked;
+  if(userBlocked){
+    banAlert.style.display='block';
+    hint.textContent='账号因违反使用规范已被禁用，不能购买新节点。';
+    await loadPlans();
+  }else{
+    banAlert.style.display='none';
+  }
+}
+
+async function logout(){
+  logoutBtn.classList.add('loading');
+  try{
+    const r=await fetch('/api/user/logout',{method:'POST'});
+    const d=await r.json();
+    if(!d.success){hint.textContent=d.msg||'退出失败';return;}
+    location.href='/user/login';
+  }finally{
+    logoutBtn.classList.remove('loading');
+  }
+}
+
+loadMe();
+loadPlans();
+loadOrders();
+loadServices();
+</script>
+</body>
+</html>
