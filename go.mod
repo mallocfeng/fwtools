@@ -1,6 +1,6 @@
 module fw-user-service
 
-go 1.25
+go 1.21
 
 require (
 	github.com/gin-contrib/sessions v1.0.4
