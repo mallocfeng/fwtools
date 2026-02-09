@@ -1,0 +1,13 @@
+# Build outputs
+fwtools
+fw-user-service
+*.exe
+*.out
+
+# Runtime files
+.env
+run.log
+run.pid
+
+# OS
+.DS_Store
