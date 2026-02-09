@@ -1095,11 +1095,21 @@ func (a *App) adminDelete(c *gin.Context) {
 	}
 	u, p := a.adminCreds(c)
 	if err := a.panelDeleteClient(u, p, rec.InboundID, rec.ClientEmail); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "msg": err.Error()})
-		return
+		if isLoneClientDeleteErr(err.Error()) {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "msg": "当前入站仅剩最后一条用户记录，3x-ui 不允许删除"})
+			return
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "msg": err.Error()})
+			return
+		}
 	}
 	a.db.Delete(&rec)
 	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+func isLoneClientDeleteErr(msg string) bool {
+	m := strings.ToLower(strings.TrimSpace(msg))
+	return strings.Contains(m, "no client remained in inbound") || strings.Contains(m, "唯一")
 }
 
 func (a *App) panelClient(username, password string) (*http.Client, error) {
