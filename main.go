@@ -138,6 +138,7 @@ type panelMsg struct {
 type panelInbound struct {
 	ID       int    `json:"id"`
 	Remark   string `json:"remark"`
+	Enable   bool   `json:"enable"`
 	Protocol string `json:"protocol"`
 	Settings string `json:"settings"`
 }
@@ -570,6 +571,9 @@ func (a *App) userInbounds(c *gin.Context) {
 	}
 	out := make([]opt, 0, len(inbounds))
 	for _, ib := range inbounds {
+		if !ib.Enable {
+			continue
+		}
 		remark := strings.TrimSpace(ib.Remark)
 		if remark == "" {
 			remark = fmt.Sprintf("节点-%d", ib.ID)
