@@ -22,6 +22,7 @@ import (
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/sqlserver"
 	"gorm.io/gorm"
@@ -673,7 +674,7 @@ func (a *App) userPayOrder(c *gin.Context) {
 		return
 	}
 
-	clientID := randStr(8) + "-" + randStr(4) + "-" + randStr(4) + "-" + randStr(4) + "-" + randStr(12)
+	clientID := uuid.NewString()
 	clientEmail := fmt.Sprintf("u%d-p%s-o%d@fw.local", uid, panelKeySlug(a.panelKey()), o.ID)
 	subID := randStr(16)
 	clientPass := randStr(36)
