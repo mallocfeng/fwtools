@@ -35,7 +35,8 @@ type syncResult struct {
 
 type AppUser struct {
 	ID           uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
-	Email        string    `gorm:"size:255;uniqueIndex;not null" json:"email"`
+	PanelKey     string    `gorm:"column:panel_key;size:100;not null;default:default;uniqueIndex:uk_app_users_panel_email;index" json:"panelKey"`
+	Email        string    `gorm:"size:255;not null;uniqueIndex:uk_app_users_panel_email" json:"email"`
 	PasswordHash string    `gorm:"size:255;not null" json:"-"`
 	Blocked      bool      `gorm:"not null;default:false" json:"blocked"`
 	CreatedAt    time.Time `json:"createdAt"`
@@ -44,8 +45,9 @@ type AppUser struct {
 
 type Plan struct {
 	ID           uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
-	Name         string    `gorm:"size:100;not null" json:"name"`
-	InboundID    int       `gorm:"not null;index" json:"inboundId"`
+	PanelKey     string    `gorm:"column:panel_key;size:100;not null;default:default;index;uniqueIndex:uk_plans_panel_name_inbound"`
+	Name         string    `gorm:"size:100;not null;uniqueIndex:uk_plans_panel_name_inbound" json:"name"`
+	InboundID    int       `gorm:"not null;index;uniqueIndex:uk_plans_panel_name_inbound" json:"inboundId"`
 	TrafficGB    int       `gorm:"not null" json:"trafficGB"`
 	DurationDays int       `gorm:"not null" json:"durationDays"`
 	PriceCents   int64     `gorm:"not null" json:"priceCents"`
@@ -57,7 +59,8 @@ type Plan struct {
 
 type Order struct {
 	ID          uint64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	OrderNo     string     `gorm:"size:64;uniqueIndex;not null" json:"orderNo"`
+	PanelKey    string     `gorm:"column:panel_key;size:100;not null;default:default;index;uniqueIndex:uk_orders_panel_order_no"`
+	OrderNo     string     `gorm:"size:64;not null;uniqueIndex:uk_orders_panel_order_no" json:"orderNo"`
 	UserID      uint64     `gorm:"not null;index" json:"userId"`
 	PlanID      uint64     `gorm:"not null;index" json:"planId"`
 	InboundID   int        `gorm:"not null;index;default:1" json:"inboundId"`
@@ -71,17 +74,18 @@ type Order struct {
 
 type ServiceRecord struct {
 	ID              uint64    `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
+	PanelKey        string    `gorm:"column:panel_key;size:100;not null;default:default;index;uniqueIndex:uk_sr_panel_client_email;uniqueIndex:uk_sr_panel_client_sub;uniqueIndex:uk_sr_panel_order"`
 	UserID          uint64    `gorm:"column:user_id;not null;index" json:"userID"`
 	UserEmail       string    `gorm:"-" json:"userEmail"`
 	UserBlocked     bool      `gorm:"-" json:"userBlocked"`
-	OrderID         uint64    `gorm:"column:order_id;not null;uniqueIndex" json:"orderID"`
+	OrderID         uint64    `gorm:"column:order_id;not null;uniqueIndex:uk_sr_panel_order" json:"orderID"`
 	PlanID          uint64    `gorm:"column:plan_id;not null;index" json:"planID"`
 	InboundID       int       `gorm:"column:inbound_id;not null;index" json:"inboundID"`
 	NodeRemark      string    `gorm:"-" json:"nodeRemark"`
-	ClientEmail     string    `gorm:"column:client_email;size:255;uniqueIndex;not null" json:"clientEmail"`
+	ClientEmail     string    `gorm:"column:client_email;size:255;not null;uniqueIndex:uk_sr_panel_client_email" json:"clientEmail"`
 	ClientID        string    `gorm:"column:client_uuid;size:64" json:"clientID"`
 	ClientPassword  string    `gorm:"column:client_password;size:128" json:"-"`
-	ClientSubID     string    `gorm:"column:client_sub_id;size:64;uniqueIndex;not null" json:"clientSubID"`
+	ClientSubID     string    `gorm:"column:client_sub_id;size:64;not null;uniqueIndex:uk_sr_panel_client_sub" json:"clientSubID"`
 	TotalBytes      int64     `gorm:"column:total_bytes" json:"totalBytes"`
 	ExpiryTimeMs    int64     `gorm:"column:expiry_time_ms" json:"expiryTimeMs"`
 	SubscriptionURL string    `gorm:"-" json:"subscriptionURL"`
@@ -99,9 +103,21 @@ type App struct {
 	cfg Config
 }
 
+func (a *App) panelScope(tx *gorm.DB) *gorm.DB {
+	return tx.Where("panel_key = ?", a.cfg.PanelKey)
+}
+
+func (a *App) panelKey() string {
+	if strings.TrimSpace(a.cfg.PanelKey) == "" {
+		return "default"
+	}
+	return a.cfg.PanelKey
+}
+
 type Config struct {
 	Port          string
 	SessionSecret string
+	PanelKey      string
 	DBHost        string
 	DBPort        string
 	DBUser        string
@@ -145,6 +161,7 @@ var (
 	lowerRe   = regexp.MustCompile(`[a-z]`)
 	digitRe   = regexp.MustCompile(`[0-9]`)
 	specialRe = regexp.MustCompile(`[^A-Za-z0-9]`)
+	orderMail = regexp.MustCompile(`^u(\d+)-(?:p([a-z0-9]+)-)?o(\d+)@fw\.local$`)
 )
 
 func getenv(k, d string) string {
@@ -155,10 +172,32 @@ func getenv(k, d string) string {
 	return v
 }
 
+func panelKeySlug(in string) string {
+	s := strings.ToLower(strings.TrimSpace(in))
+	if s == "" {
+		return "default"
+	}
+	b := strings.Builder{}
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		}
+	}
+	out := b.String()
+	if out == "" {
+		return "default"
+	}
+	if len(out) > 16 {
+		return out[:16]
+	}
+	return out
+}
+
 func loadConfig() Config {
 	return Config{
 		Port:          getenv("APP_PORT", "8090"),
 		SessionSecret: getenv("APP_SESSION_SECRET", "change-me-please"),
+		PanelKey:      strings.TrimSpace(getenv("PANEL_KEY", "default")),
 		DBHost:        getenv("DB_HOST", ""),
 		DBPort:        getenv("DB_PORT", "1433"),
 		DBUser:        getenv("DB_USER", ""),
@@ -180,6 +219,9 @@ func main() {
 	if cfg.DBHost == "" || cfg.DBUser == "" || cfg.DBPassword == "" || cfg.DBName == "" {
 		log.Fatal("DB_HOST/DB_USER/DB_PASSWORD/DB_NAME are required")
 	}
+	if strings.TrimSpace(cfg.PanelKey) == "" {
+		cfg.PanelKey = "default"
+	}
 
 	db, err := gorm.Open(sqlserver.Open(cfg.dsn()), &gorm.Config{})
 	if err != nil {
@@ -190,6 +232,9 @@ func main() {
 	}
 
 	app := &App{db: db, cfg: cfg}
+	if err := app.ensurePanelIsolationSchema(); err != nil {
+		log.Printf("ensurePanelIsolationSchema failed: %v", err)
+	}
 	if err := app.ensureDefaultPlans(); err != nil {
 		log.Printf("ensureDefaultPlans on startup failed: %v", err)
 	}
@@ -241,18 +286,19 @@ func main() {
 }
 
 func (a *App) ensureDefaultPlans() error {
+	pk := a.panelKey()
 	defaultPlans := []Plan{
-		{Name: "10G 30天", TrafficGB: 10, DurationDays: 30, PriceCents: 1000, Currency: "CNY", Status: "ACTIVE", InboundID: 1},
-		{Name: "20G 90天", TrafficGB: 20, DurationDays: 90, PriceCents: 1500, Currency: "CNY", Status: "ACTIVE", InboundID: 1},
-		{Name: "30G 365天", TrafficGB: 30, DurationDays: 365, PriceCents: 2000, Currency: "CNY", Status: "ACTIVE", InboundID: 1},
+		{PanelKey: pk, Name: "10G 30天", TrafficGB: 10, DurationDays: 30, PriceCents: 1000, Currency: "CNY", Status: "ACTIVE", InboundID: 1},
+		{PanelKey: pk, Name: "20G 90天", TrafficGB: 20, DurationDays: 90, PriceCents: 1500, Currency: "CNY", Status: "ACTIVE", InboundID: 1},
+		{PanelKey: pk, Name: "30G 365天", TrafficGB: 30, DurationDays: 365, PriceCents: 2000, Currency: "CNY", Status: "ACTIVE", InboundID: 1},
 	}
 	return a.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&Plan{}).Where("1=1").Update("status", "INACTIVE").Error; err != nil {
+		if err := tx.Model(&Plan{}).Where("panel_key = ?", pk).Update("status", "INACTIVE").Error; err != nil {
 			return err
 		}
 		for _, p := range defaultPlans {
 			current := Plan{}
-			err := tx.Where("name = ?", p.Name).Limit(1).Find(&current).Error
+			err := tx.Where("panel_key = ? and name = ? and inbound_id = ?", pk, p.Name, p.InboundID).Limit(1).Find(&current).Error
 			if err == nil && current.ID == 0 {
 				err = gorm.ErrRecordNotFound
 			}
@@ -276,6 +322,80 @@ func (a *App) ensureDefaultPlans() error {
 		}
 		return nil
 	})
+}
+
+func (a *App) ensurePanelIsolationSchema() error {
+	key := a.panelKey()
+	steps := []string{
+		"UPDATE app_users SET panel_key = ? WHERE panel_key IS NULL OR LTRIM(RTRIM(panel_key)) = ''",
+		"UPDATE plans SET panel_key = ? WHERE panel_key IS NULL OR LTRIM(RTRIM(panel_key)) = ''",
+		"UPDATE orders SET panel_key = ? WHERE panel_key IS NULL OR LTRIM(RTRIM(panel_key)) = ''",
+		"UPDATE user_service_records SET panel_key = ? WHERE panel_key IS NULL OR LTRIM(RTRIM(panel_key)) = ''",
+	}
+	for _, sql := range steps {
+		if err := a.db.Exec(sql, key).Error; err != nil {
+			return err
+		}
+	}
+	// Remove legacy single-column unique indexes that prevent cross-panel coexistence.
+	if err := a.dropSingleUniqueIndexes("app_users", "email"); err != nil {
+		return err
+	}
+	if err := a.dropSingleUniqueIndexes("user_service_records", "client_email", "client_sub_id", "order_id"); err != nil {
+		return err
+	}
+	if err := a.dropSingleUniqueIndexes("orders", "order_no"); err != nil {
+		return err
+	}
+	// Recreate panel-scoped unique indexes.
+	creates := []string{
+		"IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'uk_app_users_panel_email' AND object_id = OBJECT_ID('app_users')) CREATE UNIQUE INDEX uk_app_users_panel_email ON app_users(panel_key, email)",
+		"IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'uk_plans_panel_name_inbound' AND object_id = OBJECT_ID('plans')) CREATE UNIQUE INDEX uk_plans_panel_name_inbound ON plans(panel_key, name, inbound_id)",
+		"IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'uk_orders_panel_order_no' AND object_id = OBJECT_ID('orders')) CREATE UNIQUE INDEX uk_orders_panel_order_no ON orders(panel_key, order_no)",
+		"IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'uk_sr_panel_client_email' AND object_id = OBJECT_ID('user_service_records')) CREATE UNIQUE INDEX uk_sr_panel_client_email ON user_service_records(panel_key, client_email)",
+		"IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'uk_sr_panel_client_sub' AND object_id = OBJECT_ID('user_service_records')) CREATE UNIQUE INDEX uk_sr_panel_client_sub ON user_service_records(panel_key, client_sub_id)",
+		"IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'uk_sr_panel_order' AND object_id = OBJECT_ID('user_service_records')) CREATE UNIQUE INDEX uk_sr_panel_order ON user_service_records(panel_key, order_id)",
+	}
+	for _, sql := range creates {
+		if err := a.db.Exec(sql).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type indexName struct {
+	Name string `gorm:"column:name"`
+}
+
+func (a *App) dropSingleUniqueIndexes(table string, columns ...string) error {
+	for _, col := range columns {
+		var idxs []indexName
+		sql := `
+SELECT i.name
+FROM sys.indexes i
+JOIN sys.index_columns ic ON i.object_id = ic.object_id AND i.index_id = ic.index_id
+JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+WHERE i.object_id = OBJECT_ID(?)
+  AND i.is_unique = 1
+  AND i.is_primary_key = 0
+  AND i.is_unique_constraint = 0
+GROUP BY i.name
+HAVING COUNT(*) = 1 AND MAX(c.name) = ?`
+		if err := a.db.Raw(sql, table, col).Scan(&idxs).Error; err != nil {
+			return err
+		}
+		for _, idx := range idxs {
+			if strings.TrimSpace(idx.Name) == "" {
+				continue
+			}
+			drop := fmt.Sprintf("DROP INDEX [%s] ON [%s]", idx.Name, table)
+			if err := a.db.Exec(drop).Error; err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (a *App) userAuth() gin.HandlerFunc {
@@ -322,7 +442,7 @@ func (a *App) userRegister(c *gin.Context) {
 		return
 	}
 	exists := int64(0)
-	if err := a.db.Model(&AppUser{}).Where("email = ?", req.Email).Count(&exists).Error; err != nil {
+	if err := a.panelScope(a.db.Model(&AppUser{})).Where("email = ?", req.Email).Count(&exists).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "msg": err.Error()})
 		return
 	}
@@ -331,7 +451,7 @@ func (a *App) userRegister(c *gin.Context) {
 		return
 	}
 	h, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-	u := AppUser{Email: req.Email, PasswordHash: string(h)}
+	u := AppUser{PanelKey: a.panelKey(), Email: req.Email, PasswordHash: string(h)}
 	if err := a.db.Create(&u).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "msg": err.Error()})
 		return
@@ -374,7 +494,7 @@ func (a *App) userLogin(c *gin.Context) {
 	}
 	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
 	u := AppUser{}
-	if err := a.db.Where("email = ?", req.Email).First(&u).Error; err != nil {
+	if err := a.panelScope(a.db).Where("email = ?", req.Email).First(&u).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "msg": "invalid credentials"})
 		return
 	}
@@ -400,7 +520,7 @@ func (a *App) userLogout(c *gin.Context) {
 func (a *App) userMe(c *gin.Context) {
 	uid := a.uid(c)
 	u := AppUser{}
-	if err := a.db.Select("id", "email", "blocked").Where("id = ?", uid).First(&u).Error; err != nil {
+	if err := a.panelScope(a.db.Select("id", "email", "blocked")).Where("id = ?", uid).First(&u).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "msg": "user not found"})
 		return
 	}
@@ -429,7 +549,7 @@ func (a *App) userPlans(c *gin.Context) {
 		log.Printf("ensureDefaultPlans before userPlans failed: %v", err)
 	}
 	plans := make([]Plan, 0)
-	a.db.Where("status = ?", "ACTIVE").Order("id asc").Find(&plans)
+	a.panelScope(a.db).Where("status = ?", "ACTIVE").Order("id asc").Find(&plans)
 	c.JSON(http.StatusOK, gin.H{"success": true, "obj": plans})
 }
 
@@ -477,7 +597,7 @@ func (a *App) userCreateOrder(c *gin.Context) {
 		return
 	}
 	p := Plan{}
-	if err := a.db.Where("id = ? and status = ?", req.PlanID, "ACTIVE").First(&p).Error; err != nil {
+	if err := a.panelScope(a.db).Where("id = ? and status = ?", req.PlanID, "ACTIVE").First(&p).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "msg": "invalid plan"})
 		return
 	}
@@ -489,7 +609,7 @@ func (a *App) userCreateOrder(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "msg": "所选节点不存在或已删除"})
 		return
 	}
-	o := Order{OrderNo: fmt.Sprintf("FW-%d-%d", uid, time.Now().UnixNano()), UserID: uid, PlanID: p.ID, InboundID: req.InboundID, AmountCents: p.PriceCents, Currency: p.Currency, Status: "PENDING"}
+	o := Order{PanelKey: a.panelKey(), OrderNo: fmt.Sprintf("FW-%d-%d", uid, time.Now().UnixNano()), UserID: uid, PlanID: p.ID, InboundID: req.InboundID, AmountCents: p.PriceCents, Currency: p.Currency, Status: "PENDING"}
 	if err := a.db.Create(&o).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "msg": err.Error()})
 		return
@@ -500,7 +620,7 @@ func (a *App) userCreateOrder(c *gin.Context) {
 func (a *App) userOrders(c *gin.Context) {
 	uid := a.uid(c)
 	rows := make([]Order, 0)
-	if err := a.db.Where("user_id = ? and status = ?", uid, "PENDING").Order("id desc").Find(&rows).Error; err != nil {
+	if err := a.panelScope(a.db).Where("user_id = ? and status = ?", uid, "PENDING").Order("id desc").Find(&rows).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "msg": err.Error()})
 		return
 	}
@@ -527,7 +647,7 @@ func (a *App) userPayOrder(c *gin.Context) {
 	}
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 	o := Order{}
-	if err := a.db.Where("id = ? and user_id = ?", id, uid).First(&o).Error; err != nil {
+	if err := a.panelScope(a.db).Where("id = ? and user_id = ?", id, uid).First(&o).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"success": false, "msg": "order not found"})
 		return
 	}
@@ -536,7 +656,7 @@ func (a *App) userPayOrder(c *gin.Context) {
 		return
 	}
 	p := Plan{}
-	if err := a.db.Where("id = ? and status = ?", o.PlanID, "ACTIVE").First(&p).Error; err != nil {
+	if err := a.panelScope(a.db).Where("id = ? and status = ?", o.PlanID, "ACTIVE").First(&p).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "msg": "plan not found"})
 		return
 	}
@@ -550,7 +670,7 @@ func (a *App) userPayOrder(c *gin.Context) {
 	}
 
 	clientID := randStr(8) + "-" + randStr(4) + "-" + randStr(4) + "-" + randStr(4) + "-" + randStr(12)
-	clientEmail := fmt.Sprintf("u%d-o%d@fw.local", uid, o.ID)
+	clientEmail := fmt.Sprintf("u%d-p%s-o%d@fw.local", uid, panelKeySlug(a.panelKey()), o.ID)
 	subID := randStr(16)
 	clientPass := randStr(36)
 	expiry := time.Now().Add(time.Duration(p.DurationDays) * 24 * time.Hour).UnixMilli()
@@ -570,6 +690,7 @@ func (a *App) userPayOrder(c *gin.Context) {
 
 	subURL := strings.TrimRight(a.cfg.SubBaseURL, "/") + "/" + subID
 	rec := ServiceRecord{
+		PanelKey:       a.panelKey(),
 		UserID:         uid,
 		OrderID:        o.ID,
 		PlanID:         p.ID,
@@ -590,7 +711,7 @@ func (a *App) userDeleteOrder(c *gin.Context) {
 	uid := a.uid(c)
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 	o := Order{}
-	if err := a.db.Where("id = ? and user_id = ?", id, uid).First(&o).Error; err != nil {
+	if err := a.panelScope(a.db).Where("id = ? and user_id = ?", id, uid).First(&o).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"success": false, "msg": "order not found"})
 		return
 	}
@@ -612,7 +733,7 @@ func (a *App) userServices(c *gin.Context) {
 		log.Printf("syncFromPanel before userServices failed: %v", err)
 	}
 	rows := make([]ServiceRecord, 0)
-	a.db.Where("user_id = ? and status = ?", uid, "DONE").Order("id desc").Find(&rows)
+	a.panelScope(a.db).Where("user_id = ? and status = ?", uid, "DONE").Order("id desc").Find(&rows)
 	a.fillSubscriptionURL(rows)
 	a.fillNodeRemark(rows)
 	c.JSON(http.StatusOK, gin.H{"success": true, "obj": rows})
@@ -654,7 +775,7 @@ func (a *App) adminServices(c *gin.Context) {
 	u, p := a.adminCreds(c)
 	_, _ = a.syncFromPanel(u, p)
 	rows := make([]ServiceRecord, 0)
-	a.db.Order("id desc").Find(&rows)
+	a.panelScope(a.db).Order("id desc").Find(&rows)
 	a.fillSubscriptionURL(rows)
 	a.fillUserProfile(rows)
 	a.fillNodeRemark(rows)
@@ -693,6 +814,11 @@ func (a *App) fillStatus(rows []ServiceRecord, onlineSet map[string]bool) {
 func (a *App) fillUserProfile(rows []ServiceRecord) {
 	uidSet := make(map[uint64]struct{})
 	for i := range rows {
+		if rows[i].UserID == 0 {
+			if uid, _ := inferUserOrderFromClientEmail(rows[i].ClientEmail); uid > 0 {
+				rows[i].UserID = uid
+			}
+		}
 		if rows[i].UserID > 0 {
 			uidSet[rows[i].UserID] = struct{}{}
 		}
@@ -705,7 +831,7 @@ func (a *App) fillUserProfile(rows []ServiceRecord) {
 		ids = append(ids, id)
 	}
 	users := make([]AppUser, 0)
-	if err := a.db.Select("id", "email", "blocked").Where("id IN ?", ids).Find(&users).Error; err != nil {
+	if err := a.panelScope(a.db.Select("id", "email", "blocked")).Where("id IN ?", ids).Find(&users).Error; err != nil {
 		return
 	}
 	userMap := make(map[uint64]AppUser, len(users))
@@ -718,6 +844,16 @@ func (a *App) fillUserProfile(rows []ServiceRecord) {
 			rows[i].UserBlocked = u.Blocked
 		}
 	}
+}
+
+func inferUserOrderFromClientEmail(email string) (uint64, uint64) {
+	m := orderMail.FindStringSubmatch(strings.ToLower(strings.TrimSpace(email)))
+	if len(m) != 4 {
+		return 0, 0
+	}
+	uid, _ := strconv.ParseUint(m[1], 10, 64)
+	oid, _ := strconv.ParseUint(m[3], 10, 64)
+	return uid, oid
 }
 
 func (a *App) fillNodeRemark(rows []ServiceRecord) {
@@ -764,7 +900,7 @@ func (a *App) isUserBlocked(uid uint64) (bool, error) {
 		return false, nil
 	}
 	u := AppUser{}
-	if err := a.db.Select("id", "blocked").Where("id = ?", uid).First(&u).Error; err != nil {
+	if err := a.panelScope(a.db.Select("id", "blocked")).Where("id = ?", uid).First(&u).Error; err != nil {
 		return false, err
 	}
 	return u.Blocked, nil
@@ -776,17 +912,17 @@ func (a *App) adminBlockUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "msg": "invalid user id"})
 		return
 	}
-	if err := a.db.Where("id = ?", uid).First(&AppUser{}).Error; err != nil {
+	if err := a.panelScope(a.db).Where("id = ?", uid).First(&AppUser{}).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"success": false, "msg": "user not found"})
 		return
 	}
-	if err := a.db.Model(&AppUser{}).Where("id = ?", uid).Update("blocked", true).Error; err != nil {
+	if err := a.panelScope(a.db.Model(&AppUser{})).Where("id = ?", uid).Update("blocked", true).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "msg": err.Error()})
 		return
 	}
 	u, p := a.adminCreds(c)
 	rows := make([]ServiceRecord, 0)
-	a.db.Where("user_id = ?", uid).Find(&rows)
+	a.panelScope(a.db).Where("user_id = ?", uid).Find(&rows)
 	disabled := 0
 	for i := range rows {
 		if err := a.panelSetClientEnable(u, p, rows[i].ClientEmail, false); err != nil {
@@ -805,7 +941,7 @@ func (a *App) adminUnblockUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "msg": "invalid user id"})
 		return
 	}
-	if err := a.db.Model(&AppUser{}).Where("id = ?", uid).Update("blocked", false).Error; err != nil {
+	if err := a.panelScope(a.db.Model(&AppUser{})).Where("id = ?", uid).Update("blocked", false).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "msg": err.Error()})
 		return
 	}
@@ -848,14 +984,16 @@ func (a *App) syncFromPanel(username, password string) (syncResult, error) {
 				status = "DISABLED"
 			}
 			rec := ServiceRecord{}
-			err := a.db.Where("client_email = ? OR client_sub_id = ?", email, subID).First(&rec).Error
+			err := a.panelScope(a.db).Where("client_email = ? OR client_sub_id = ?", email, subID).First(&rec).Error
 			if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 				return out, err
 			}
 			if errors.Is(err, gorm.ErrRecordNotFound) {
+				uid, oid := inferUserOrderFromClientEmail(email)
 				rec = ServiceRecord{
-					UserID:         0,
-					OrderID:        uint64(time.Now().UnixNano()) + uint64(rand.Intn(1000)),
+					PanelKey:       a.panelKey(),
+					UserID:         uid,
+					OrderID:        oid,
 					PlanID:         0,
 					InboundID:      ib.ID,
 					ClientEmail:    email,
@@ -865,6 +1003,9 @@ func (a *App) syncFromPanel(username, password string) (syncResult, error) {
 					TotalBytes:     pc.TotalGB,
 					ExpiryTimeMs:   pc.ExpiryTime,
 					Status:         status,
+				}
+				if rec.OrderID == 0 {
+					rec.OrderID = uint64(time.Now().UnixNano()) + uint64(rand.Intn(1000))
 				}
 				if err := a.db.Create(&rec).Error; err != nil {
 					return out, err
@@ -880,6 +1021,16 @@ func (a *App) syncFromPanel(username, password string) (syncResult, error) {
 			rec.TotalBytes = pc.TotalGB
 			rec.ExpiryTimeMs = pc.ExpiryTime
 			rec.Status = status
+			if rec.UserID == 0 || rec.OrderID == 0 {
+				if uid, oid := inferUserOrderFromClientEmail(email); uid > 0 {
+					if rec.UserID == 0 {
+						rec.UserID = uid
+					}
+					if rec.OrderID == 0 && oid > 0 {
+						rec.OrderID = oid
+					}
+				}
+			}
 			if err := a.db.Save(&rec).Error; err != nil {
 				return out, err
 			}
@@ -890,7 +1041,7 @@ func (a *App) syncFromPanel(username, password string) (syncResult, error) {
 	// no longer exist in panel. This keeps refresh results consistent with 3x-ui.
 	if !hasParseErr {
 		rows := make([]ServiceRecord, 0)
-		if err := a.db.Find(&rows).Error; err != nil {
+		if err := a.panelScope(a.db).Find(&rows).Error; err != nil {
 			return out, err
 		}
 		for _, rec := range rows {
@@ -913,7 +1064,7 @@ func (a *App) adminEnable(c *gin.Context)  { a.adminSetEnable(c, true) }
 func (a *App) adminSetEnable(c *gin.Context, enable bool) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 	rec := ServiceRecord{}
-	if err := a.db.Where("id = ?", id).First(&rec).Error; err != nil {
+	if err := a.panelScope(a.db).Where("id = ?", id).First(&rec).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"success": false, "msg": "record not found"})
 		return
 	}
@@ -934,7 +1085,7 @@ func (a *App) adminSetEnable(c *gin.Context, enable bool) {
 func (a *App) adminDelete(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 	rec := ServiceRecord{}
-	if err := a.db.Where("id = ?", id).First(&rec).Error; err != nil {
+	if err := a.panelScope(a.db).Where("id = ?", id).First(&rec).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"success": false, "msg": "record not found"})
 		return
 	}

@@ -7,6 +7,7 @@ This project is an independent service that integrates with 3x-ui through HTTP A
 - 3x-ui remains upstream and untouched.
 - You can upgrade 3x-ui independently.
 - You can upgrade this service independently.
+- Multi-panel isolation supported via `PANEL_KEY` (same DB, different 3x-ui servers, no data collision).
 
 ## Endpoints
 
@@ -33,6 +34,12 @@ set +a
 
 go run .
 ```
+
+`PANEL_KEY` usage:
+
+- Use a different `PANEL_KEY` value per 3x-ui server deployment.
+- Example: `PANEL_KEY=hk-prod-01`, `PANEL_KEY=sg-prod-01`
+- All users/plans/orders/subscriptions are isolated by this key.
 
 3. Open
 
